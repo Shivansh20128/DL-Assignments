@@ -1,8 +1,8 @@
 # Replace changerollno with your rollnumber as mentioned in Assignment Guidelines
 import argparse
 from Pipeline import *
-__import__('Pipeline.2020128A2')
-# from Pipeline._2020128A2 import *
+# __import__('Pipeline.2020128A2')
+from Pipeline._2020128A2 import *
 # importlib.import_module(Pipeline.2020128A2, package=None)
 
 P = argparse.ArgumentParser()
