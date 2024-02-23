@@ -26,10 +26,10 @@ if __name__ == "__main__":
     ]
     
     Architectures = [
-        Resnet_Q1(),
-        VGG_Q2(),
-        Inception_Q3(),
-        CustomNetwork_Q4()
+        Resnet_Q1()
+        # VGG_Q2(),
+        # Inception_Q3(),
+        # CustomNetwork_Q4()
     ]
     
     
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                     num_workers=2,
                     drop_last=True
                 )
-                
+                print("about to train")
                 trainer(
                     gpu=A.gpu,
                     dataloader=train_dataloader,

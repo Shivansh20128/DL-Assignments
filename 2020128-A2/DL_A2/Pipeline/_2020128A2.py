@@ -3,6 +3,7 @@ import torchaudio
 import torchvision
 import torch.nn as nn
 from Pipeline import *
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.utils.data import Subset, random_split
 import torchvision.transforms as transforms
@@ -15,14 +16,14 @@ train_image_dataset_downloader = torchvision.datasets.CIFAR10(
     root='./data',  # Specify the root directory where the dataset will be downloaded
     train=True,      # Set to True for the training set, False for the test set
     download=True,   # Set to True to download the dataset if not already downloaded
-    transform=transforms.ToTensor()    
+    transform=transforms.ToTensor()
 )
 
 test_image_dataset_downloader = torchvision.datasets.CIFAR10(
     root='./data',  # Specify the root directory where the dataset will be downloaded
     train=False,      # Set to True for the training set, False for the test set
     download=True,   # Set to True to download the dataset if not already downloaded
-    transform=transforms.ToTensor()    
+    transform=transforms.ToTensor()
 )
 
 # Audio Downloader
@@ -96,25 +97,97 @@ class AudioDataset(Dataset):
         train_dataset, val_test_dataset = random_split(audio_dataset_downloader, [num_train_samples, num_val_test_samples])
         val_dataset, test_dataset = random_split(val_test_dataset, [num_val_samples, num_test_samples])
 
-        
+        # Assign the appropriate dataset based on the split
+        if split == "train":
+            self.dataset = train_dataset
+        elif split == "val":
+            self.dataset = val_dataset
+        elif split == "test":
+            self.dataset = test_dataset
 
-        pass
-        """
-        Write your code here
-        """
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, index):
+        waveform, sample_rate, label, speaker_id, utterance_number = self.dataset[index]
+        # You can perform additional processing or transformations here if needed
+        return waveform, label
+        # pass
+        # """
+        # Write your code here
+        # """
+
+class ResnetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, is_1d=False):
+        super(ResnetBlock, self).__init__()
+
+        # Convolution layer
+        if is_1d:
+            conv_layer = nn.Conv1d(in_channels, out_channels, kernel_size=3, padding=1)
+        else:
+            conv_layer = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+
+        # Batch normalization layer
+        bn_layer = nn.BatchNorm1d(out_channels) if is_1d else nn.BatchNorm2d(out_channels)
+
+        self.block = nn.Sequential(
+            conv_layer,
+            bn_layer,
+            nn.ReLU(),
+            nn.Conv1d(out_channels, out_channels, kernel_size=3, padding=1) if is_1d else nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm1d(out_channels) if is_1d else nn.BatchNorm2d(out_channels)
+        )
+
+    def forward(self, x):
+        return self.block(x)
+
 
 class Resnet_Q1(nn.Module):
-    def __init__(self,
-                 *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        """
-        Write your code here
-        """
+    def __init__(self, num_blocks=18, is_1d=False, *args, **kwargs) -> None:
+        super(Resnet_Q1, self).__init__(*args, **kwargs)
+
+        self.conv1 = nn.Conv1d(1, 64, kernel_size=3, padding=1) if is_1d else nn.Conv2d(3, 64, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm1d(64) if is_1d else nn.BatchNorm2d(64)
+        self.relu = nn.ReLU()
+
+        # Create 18 ResNet blocks
+        self.resnet_blocks = nn.Sequential(
+            *[ResnetBlock(64, 64, is_1d=is_1d) for _ in range(num_blocks)]
+        )
+
+        
+        # Add a global average pooling layer
+        self.global_avg_pooling = nn.AdaptiveAvgPool2d(1) if not is_1d else nn.AdaptiveAvgPool1d(1)
+
+        # Final fully connected layer
+        self.fc = nn.Linear(64, 10) if not is_1d else nn.Linear(64, 10)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.resnet_blocks(x)
+
+        # Global average pooling
+        x = self.global_avg_pooling(x)
+
+        # Flatten for fully connected layer
+        x = x.view(x.size(0), -1)
+
+        # Final fully connected layer
+        x = self.fc(x)
+
+        return x
+    
+        # """
+        # Write your code here
+        # """
         
 class VGG_Q2(nn.Module):
     def __init__(self,
                  *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        
         """
         Write your code here
         """
@@ -144,18 +217,57 @@ def trainer(gpu="F",
     device = torch.device("cuda:0") if gpu == "T" else torch.device("cpu")
     
     network = network.to(device)
-    
-    # Write your code here
+    # network.train()  # Set the network to training mode
+    print("in the train function about to train")
     for epoch in range(EPOCH):
-        pass
-    """
-    Only use this print statement to print your epoch loss, accuracy
-    print("Training Epoch: {}, [Loss: {}, Accuracy: {}]".format(
-        epoch,
-        loss,
-        accuracy
-    ))
-    """ 
+        print("inside the loop now")
+        print(EPOCH)
+        running_loss = 0.0
+        correct_predictions = 0
+        total_samples = 0
+
+        optimizer.zero_grad()
+        for inputs, labels in dataloader:
+            print("inside dataloader loop")
+            inputs, labels = inputs.to(device), labels.to(device)
+            print("labels: ", labels)
+
+
+            outputs = network(inputs)
+            # if len(outputs.shape) > 1:
+            #     outputs = outputs.squeeze()
+            print("output: ", outputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+
+            _, predicted = torch.max(outputs, 1)
+            total_samples += labels.size(0)
+            correct_predictions += (predicted == labels).sum().item()
+
+            accuracy = correct_predictions / total_samples
+            epoch_loss = running_loss / len(dataloader)
+
+            print("Training Epoch: {}, [Loss: {:.4f}, Accuracy: {:.4f}]".format(epoch, epoch_loss, accuracy))
+
+        accuracy = correct_predictions / total_samples
+        epoch_loss = running_loss / len(dataloader)
+
+        print("Training Epoch: {}, [Loss: {:.4f}, Accuracy: {:.4f}]".format(epoch, epoch_loss, accuracy))
+
+    # # Write your code here
+    # for epoch in range(EPOCH):
+    #     pass
+    # """
+    # Only use this print statement to print your epoch loss, accuracy
+    # print("Training Epoch: {}, [Loss: {}, Accuracy: {}]".format(
+    #     epoch,
+    #     loss,
+    #     accuracy
+    # ))
+    # """ 
 
 def validator(gpu="F",
               dataloader=None,
