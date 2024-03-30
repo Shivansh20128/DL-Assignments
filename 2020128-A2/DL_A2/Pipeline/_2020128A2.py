@@ -143,7 +143,7 @@ class ResnetBlock(nn.Module):
 
 
 class Resnet_Q1(nn.Module):
-    def __init__(self, num_blocks=18, is_1d=False, *args, **kwargs) -> None:
+    def __init__(self, num_blocks=18, is_1d=True, *args, **kwargs) -> None:
         super(Resnet_Q1, self).__init__(*args, **kwargs)
 
         self.conv1 = nn.Conv1d(1, 64, kernel_size=3, padding=1) if is_1d else nn.Conv2d(3, 64, kernel_size=3, padding=1)
@@ -187,7 +187,75 @@ class VGG_Q2(nn.Module):
     def __init__(self,
                  *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        self.block1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
         
+        # Block 2
+        self.block2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 3
+        self.block3 = nn.Sequential(
+            nn.Conv2d(128, 192, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(192, 192, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(192, 192, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 4
+        self.block4 = nn.Sequential(
+            nn.Conv2d(192, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Block 5
+        self.block5 = nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        
+        # Fully connected layers
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(256 * 4 * 4, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, 10)
+        )
+    
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        x = self.block4(x)
+        x = self.block5(x)
+        x = self.fc_layers(x)
+        return x
         """
         Write your code here
         """
