@@ -14,21 +14,6 @@ A = P.parse_args()
     
 
 if __name__ == "__main__":
-    print("shuru")
-    transform = transforms.Compose([
-        transforms.Resize((28, 28)),  # Ensure all images have the same size
-        transforms.ToTensor()
-    ])
-    dataset = AlteredMNIST(root_dir="d:\\Deep Learning\\Deep-Learning-Assignments\\2020128-A3\\DLA3\\Data\\", transform=transform)
-
-    # Check a few samples to verify consistency in sizes
-    for idx in range(10):
-        noisy_inputs, clean_target = dataset[idx]
-        if len(noisy_inputs)>0:
-            print(f"Noisy inputs size: {noisy_inputs[0]}")
-            print(f"Clean target size: {clean_target[0]}")
-            print(" ")
-
     Data = DataLoader(dataset=AlteredMNIST(),
                       batch_size=BATCH_SIZE,
                       shuffle=True,

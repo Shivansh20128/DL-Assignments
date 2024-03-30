@@ -36,7 +36,7 @@ class AlteredMNIST():
 
     def __getitem__(self, idx):
         clean_image_path = self.clean_image_paths[idx]
-        clean_image = Image.open(clean_image_path)
+        clean_image = Image.open(clean_image_path).convert('L')
 
         # print("clean imagepath: ", clean_image_path)
 
@@ -46,7 +46,7 @@ class AlteredMNIST():
         for noisy_image_path in self.noisy_image_paths:
             # print("weell: ", noisy_image_path.split('_')[1])
             if noisy_image_path.split('_')[1] == clean_image_path.split('_')[1]:
-                noisy_image = Image.open(noisy_image_path)
+                noisy_image = Image.open(noisy_image_path).convert('L')
                 if self.transform:
                     noisy_image = self.transform(noisy_image)
                     clean_image = self.transform(clean_image)
@@ -215,15 +215,16 @@ class AETrainer:
             # print("hello2")
             # print(datatype)
             # print(dataloader)
-            
+            print()
             for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
+                print("what the hell")
                 print("here i am")
-                loss = self.train_step(noisy_inputs, clean_targets)
-                epoch_loss += loss
+                # loss = self.train_step(noisy_inputs, clean_targets)
+                # epoch_loss += loss
+                break
 
             epoch_loss /= len(dataloader)
             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}")
-
 
 
 class VAETrainer:
