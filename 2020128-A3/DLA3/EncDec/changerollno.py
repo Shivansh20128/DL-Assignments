@@ -42,7 +42,7 @@ class AlteredMNIST():
 
         # Find corresponding noisy images
         noisy_images = []
-        clean_images = []
+        clean_images = [torch.rand(1,28,28)]
         for noisy_image_path in self.noisy_image_paths:
             # print("weell: ", noisy_image_path.split('_')[1])
             if noisy_image_path.split('_')[1] == clean_image_path.split('_')[1]:
@@ -57,6 +57,8 @@ class AlteredMNIST():
         # print("Printing noisy images")
         # print(noisy_image.shape)
 
+        # noisy_images = torch.stack(noisy_images)
+        clean_images = torch.stack(clean_images)
         # print("Printing clean images")
         # print(clean_image.shape)
 
@@ -64,7 +66,7 @@ class AlteredMNIST():
         # print("noisy len:",len(noisy_images))
         # print("clean len:",len(clean_images))
         # print(" ")
-        return noisy_images, clean_images
+        return clean_images, clean_images
 
 
 class Encoder(nn.Module):
