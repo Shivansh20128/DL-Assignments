@@ -15,20 +15,22 @@ A = P.parse_args()
 
 if __name__ == "__main__":
     print("start")
-    dataset=AlteredMNIST()
-    for idx in range(len(dataset)):
-        try:
-            data, label = dataset[idx]
-        except Exception as e:
-            print(f"Error encountered while accessing sample at index {idx}: {e}")
-            
+
     Data = DataLoader(dataset=AlteredMNIST(),
                       batch_size=BATCH_SIZE,
                       shuffle=True,
-                      num_workers=2,
+                      num_workers=0,
                       drop_last=True,
                       pin_memory=True)
     
+    try:
+        print("Batch size loll:")
+        batch = next(iter(Data))
+        data, labels = batch
+        print("Batch size:", len(data))
+        # You can print or inspect the data and labels here
+    except Exception as e:
+        print("Error encountered while accessing a batch:", e)
     # print("dataloader print")
     # for batch_idx, (noisy_inputs, clean_targets) in enumerate(Data):
     #     print("here i am")
