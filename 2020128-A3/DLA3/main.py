@@ -14,6 +14,14 @@ A = P.parse_args()
     
 
 if __name__ == "__main__":
+    print("start")
+    dataset=AlteredMNIST()
+    for idx in range(len(dataset)):
+        try:
+            data, label = dataset[idx]
+        except Exception as e:
+            print(f"Error encountered while accessing sample at index {idx}: {e}")
+            
     Data = DataLoader(dataset=AlteredMNIST(),
                       batch_size=BATCH_SIZE,
                       shuffle=True,

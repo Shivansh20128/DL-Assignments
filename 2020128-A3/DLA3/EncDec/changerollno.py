@@ -27,8 +27,7 @@ class AlteredMNIST():
         image_paths = []
         folder_path = os.path.join(self.root_dir, folder_name)
         for filename in os.listdir(folder_path):
-            if filename.endswith('.png'):
-                image_paths.append(os.path.join(folder_path, filename))
+            image_paths.append(os.path.join(folder_path, filename))
         return image_paths
 
     def __len__(self):
@@ -36,6 +35,7 @@ class AlteredMNIST():
 
     def __getitem__(self, idx):
         clean_image_path = self.clean_image_paths[idx]
+        # print("clean image path:   ",clean_image_path)
         clean_image = Image.open(clean_image_path).convert('L')
 
         # print("clean imagepath: ", clean_image_path)
@@ -50,8 +50,8 @@ class AlteredMNIST():
                 if self.transform:
                     noisy_image = self.transform(noisy_image)
                     clean_image = self.transform(clean_image)
-                # print("clean image: ", clean_image)
-                # print("noisy image: ", noisy_image)
+                # print("clean image: ", clean_image.shape)
+                # print("noisy image: ", noisy_image.shape)
                 noisy_images.append(noisy_image)
                 clean_images.append(clean_image)
         # print("Printing noisy images")
@@ -156,11 +156,11 @@ class AETrainer:
         self.encoder.to(self.device)
         self.decoder.to(self.device)
         self.dataloader = dataloader
-        print("yehs")
+        # print("yehs")
         # Initialize optimizer
         self.optimizer = optimizer
-        self.train(dataloader, 50)
-        print("train hogya shyd")
+        self.train(self.dataloader, 50)
+        # print("train hogya shyd")
 
 
     def train_step(self, noisy_inputs, clean_targets):
@@ -174,7 +174,7 @@ class AETrainer:
         Returns:
             float: Loss value for the current step.
         """
-        print("kmswksm")
+        # print("kmswksm")
         self.encoder.train()
         self.decoder.train()
         noisy_inputs = noisy_inputs.to(self.device)
@@ -195,7 +195,7 @@ class AETrainer:
         return loss.item()
 
     def train(self, dataloader, num_epochs):
-        print("in the train function")
+        # print("in the train function")
         """
         Train the autoencoder.
 
@@ -205,7 +205,7 @@ class AETrainer:
         """
         for epoch in range(num_epochs):
             epoch_loss = 0.0
-            print("epcohs tk")
+            # print("epcohs tk")
             # data = dataloader.dataset.data 
             # shape = dataloader.dataset.data.shape  
             # datatype = dataloader.dataset.data.dtype
@@ -216,12 +216,18 @@ class AETrainer:
             # print(datatype)
             # print(dataloader)
             print()
-            for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
-                print("what the hell")
-                print("here i am")
-                # loss = self.train_step(noisy_inputs, clean_targets)
-                # epoch_loss += loss
-                break
+            for batch in dataloader:
+                print(batch)
+                data, labels = batch
+                print("Data:", data)
+                print("Labels:", labels)
+
+            # for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
+            #     # print("what the hell")
+            #     # print("here i am")
+            #     loss = self.train_step(noisy_inputs, clean_targets)
+            #     epoch_loss += loss
+            #     # break
 
             epoch_loss /= len(dataloader)
             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}")
