@@ -315,7 +315,7 @@ class VAETrainer:
         self.decoder.to(self.device)
         self.dataloader = dataloader
         self.optimizer = optimizer
-        self.train(self.dataloader, 1)
+        self.train(self.dataloader, EPOCH)
 
     def train_step(self, noisy_inputs, clean_targets, batch_id,epoch):
         """
