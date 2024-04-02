@@ -3,6 +3,7 @@ import torch
 from torchvision import transforms
 from PIL import Image
 from torch import nn
+import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.manifold import TSNE
@@ -329,27 +330,60 @@ class VAETrainer:
     """
     pass
 
+def ssim(img1, img2):
+    # Convert images to tensors
+    img1_tensor = torch.tensor(img1, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)  # Assuming input images are in numpy format
+    img2_tensor = torch.tensor(img2, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)
+    
+    # Calculate SSIM
+    ssim_value = F.msssim(img1_tensor, img2_tensor, data_range=1, size_average=True)
+    
+    return ssim_value.item()
 
 class AE_TRAINED:
     """
     Write code for loading trained Encoder-Decoder from saved checkpoints for Autoencoder paradigm here.
     use forward pass of both encoder-decoder to get output image.
     """
-    pass
+    def __init__(self, gpu_status):
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+        
 
-    def from_path(sample, original, type):
+    def from_path(self,sample, original, type):
         "Compute similarity score of both 'sample' and 'original' and return in float"
-        pass
+        checkpoint = torch.load("checkpoint.pth")
+        
+        self.encoder.load_state_dict(checkpoint['model_state_dict_encoder'])
+        self.decoder.load_state_dict(checkpoint['model_state_dict_decoder'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        loss = checkpoint['loss']
+
+        with torch.no_grad():
+            encoded = self.encoder(sample)
+            decoded = self.decoder(encoded)
+
+        # Convert tensors to numpy arrays
+        sample_np = original.squeeze(0).permute(1, 2, 0).numpy()
+        decoded_np = decoded.squeeze(0).permute(1, 2, 0).numpy()
+
+        print("sample np: ",sample_np)
+        print("decoded np: ",decoded_np)
+
+        # Compute SSIM score
+        score = ssim(sample_np, decoded_np)
+
+        return float(score)
+
+        
 
 class VAE_TRAINED:
     """
     Write code for loading trained Encoder-Decoder from saved checkpoints for Autoencoder paradigm here.
     use forward pass of both encoder-decoder to get output image.
     """
-    
-    def __init__(self, encoder, decoder):
-        self.encoder = encoder
-        self.decoder = decoder
+
 
     def from_path(sample, original, type):
         "Compute similarity score of both 'sample' and 'original' and return in float"
