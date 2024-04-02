@@ -36,8 +36,9 @@ if __name__ == "__main__":
     #     print("here i am")
     E = Encoder()
     D = Decoder()
-    
+    print("before loss function")
     L = [AELossFn()]
+    print("after loss function")
     
     O = torch.optim.Adam(ParameterSelector(E, D), lr=LEARNING_RATE)
     
@@ -76,7 +77,7 @@ if __name__ == "__main__":
     # else:
     #     print("Bonus Question not done")
         
-    # AE_Pipeline = AE_TRAINED(gpu=False)
+    AE_Pipeline = AE_TRAINED(gpu=False)
     # VAE_Pipeline = VAE_TRAINED(gpu=False)
     
     

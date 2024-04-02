@@ -3,7 +3,10 @@ import torch
 from torchvision import transforms
 from PIL import Image
 from torch import nn
-
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.manifold import TSNE
+import numpy as np
 
 class AlteredMNIST():
     """
@@ -42,7 +45,7 @@ class AlteredMNIST():
 
         # Find corresponding noisy images
         noisy_images = []
-        clean_images = [torch.rand(1,28,28)]
+        clean_images = []
         for noisy_image_path in self.noisy_image_paths:
             # print("weell: ", noisy_image_path.split('_')[1])
             if noisy_image_path.split('_')[1] == clean_image_path.split('_')[1]:
@@ -50,59 +53,126 @@ class AlteredMNIST():
                 if self.transform:
                     noisy_image = self.transform(noisy_image)
                     clean_image = self.transform(clean_image)
+
+            
                 # print("clean image: ", clean_image.shape)
-                # print("noisy image: ", noisy_image.shape)
+                # print("noisy image: ", type(noisy_image))
                 noisy_images.append(noisy_image)
                 clean_images.append(clean_image)
         # print("Printing noisy images")
         # print(noisy_image.shape)
+        if len(noisy_images)!=0:
+            noisy_images = torch.stack(noisy_images).squeeze().unsqueeze(0)
+            clean_images = torch.stack(clean_images).squeeze().unsqueeze(0)
+        else:
+            # print("isme")
+            noisy_images = torch.zeros(1,28,28)
+            clean_images = torch.zeros(1,28,28)
 
-        # noisy_images = torch.stack(noisy_images)
-        clean_images = torch.stack(clean_images)
-        # print("Printing clean images")
-        # print(clean_image.shape)
-
-        
         # print("noisy len:",len(noisy_images))
         # print("clean len:",len(clean_images))
         # print(" ")
-        return clean_images, clean_images
+        
+        return noisy_images, clean_images
 
+
+def plot_tsne_embeddings(encoder, data_loader, n_epochs):
+    all_embeddings = []
+    labels = []
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    with torch.no_grad():
+        for inputs, targets in data_loader:
+            inputs = inputs.to(device)
+            logits = encoder(inputs)  # Assuming your encoder provides embeddings/logits
+            all_embeddings.append(logits.cpu().numpy().reshape(inputs.size(0), -1))  # Flatten the embeddings
+            labels.append(targets.numpy())
+
+    all_embeddings = np.concatenate(all_embeddings, axis=0)
+    labels = np.concatenate(labels, axis=0)
+
+    tsne = TSNE(n_components=3, perplexity=30, n_iter=1000, random_state=42)
+    embeddings_3d = tsne.fit_transform(all_embeddings)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    unique_labels = np.unique(labels)
+    for label in unique_labels:
+        indices = labels == label
+        ax.scatter(embeddings_3d[indices][:, 0], embeddings_3d[indices][:, 1], embeddings_3d[indices][:, 2], label=label)
+    
+    ax.set_xlabel('Component 1')
+    ax.set_ylabel('Component 2')
+    ax.set_zlabel('Component 3')
+    ax.set_title(f't-SNE Embeddings After {n_epochs} Epochs')
+    ax.legend()
+    plt.show()
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += residual
+        out = self.relu(out)
+        return out
 
 class Encoder(nn.Module):
-    """
-    Write code for Encoder ( Logits/embeddings shape must be [batch_size,channel,height,width] )
-    """
-    def __init__(self, input_size=28*28, hidden_size1=128, hidden_size2=16, z_dim=2):
-        super().__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size1)
-        self.fc2 = nn.Linear(hidden_size1 , hidden_size2)
-        self.fc3 = nn.Linear(hidden_size2, z_dim)
-        self.relu = nn.ReLU()
-
-    def forward(self,x):
-        x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = self.fc3(x)
+    def __init__(self):
+        super(Encoder, self).__init__()
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.residual1 = ResidualBlock(64, 64)
+        self.residual2 = ResidualBlock(64, 64)
+        self.conv2 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.residual3 = ResidualBlock(32, 32)
+        self.residual4 = ResidualBlock(32, 32)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.residual1(x)
+        x = self.residual2(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.residual3(x)
+        x = self.residual4(x)
         return x
 
 class Decoder(nn.Module):
-    """
-    Write code for decoder here ( Output image shape must be same as Input image shape i.e. [batch_size,1,28,28] )
-    """
-    def __init__(self, output_size=28*28, hidden_size1=128, hidden_size2=16, z_dim=2):
-        super().__init__()
-        self.fc1 = nn.Linear(z_dim, hidden_size2)
-        self.fc2 = nn.Linear(hidden_size2 , hidden_size1)
-        self.fc3 = nn.Linear(hidden_size1, output_size)
-        self.relu = nn.ReLU()
-
-    def forward(self,x):
-        x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = torch.sigmoid(self.fc3(x))
+    def __init__(self):
+        super(Decoder, self).__init__()
+        self.conv1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.residual1 = ResidualBlock(64, 64)
+        self.residual2 = ResidualBlock(64, 64)
+        self.conv2 = nn.Conv2d(64, 1, kernel_size=3, padding=1)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.residual1(x)
+        x = self.residual2(x)
+        x = self.conv2(x)
         return x
-
 
 class AELossFn:
     """
@@ -110,10 +180,15 @@ class AELossFn:
     """
     def __init__(self):
         super(AELossFn, self).__init__()
+        # print("this is the loss function")
         self.loss_fn = torch.nn.MSELoss()
+        # print("this is the loss function after calling MSE loss")
 
     def forward(self, input, target):
-        return self.loss_fn(input, target)
+        # print("this is inside the forward function")
+        value_loss = self.loss_fn(input, target)
+        # print("value loss:  ",value_loss)
+        return value_loss
 
 class VAELossFn:
     """
@@ -161,7 +236,7 @@ class AETrainer:
         # print("yehs")
         # Initialize optimizer
         self.optimizer = optimizer
-        self.train(self.dataloader, 50)
+        self.train(self.dataloader, 1)
         # print("train hogya shyd")
 
 
@@ -185,10 +260,13 @@ class AETrainer:
         # Forward pass
         latent_representation = self.encoder(noisy_inputs)
         reconstructed_data = self.decoder(latent_representation)
-
+        # print("clean targets: ", latent_representation)
+        # print("recoinstructed data: ", reconstructed_data)
+        # print("recoinstructed data: ")
         # Calculate loss
-        loss = self.criterion(reconstructed_data, clean_targets)
-
+        # print(self.criterion)
+        loss = self.criterion.forward(reconstructed_data, clean_targets)
+        print("loss:",loss)
         # Backpropagation
         self.optimizer.zero_grad()
         loss.backward()
@@ -217,21 +295,23 @@ class AETrainer:
             # print("hello2")
             # print(datatype)
             # print(dataloader)
-            print()
-            for batch in dataloader:
-                print(batch)
-                data, labels = batch
-                print("Data:", data)
-                print("Labels:", labels)
 
-            # for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
-            #     # print("what the hell")
-            #     # print("here i am")
-            #     loss = self.train_step(noisy_inputs, clean_targets)
-            #     epoch_loss += loss
-            #     # break
+            for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
+                # print("what the hell")
+                # print("here i am")
+                loss = self.train_step(noisy_inputs, clean_targets)
+                epoch_loss += loss
+                # break
 
             epoch_loss /= len(dataloader)
+            torch.save({
+            'epoch': epoch,
+            'model_state_dict_encoder': self.encoder.state_dict(),
+            'model_state_dict_decoder': self.decoder.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': epoch_loss,
+            }, 'checkpoint.pth')
+            # plot_tsne_embeddings(self.encoder, dataloader, n_epochs=epoch+1)
             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}")
 
 
@@ -266,7 +346,10 @@ class VAE_TRAINED:
     Write code for loading trained Encoder-Decoder from saved checkpoints for Autoencoder paradigm here.
     use forward pass of both encoder-decoder to get output image.
     """
-    pass
+    
+    def __init__(self, encoder, decoder):
+        self.encoder = encoder
+        self.decoder = decoder
 
     def from_path(sample, original, type):
         "Compute similarity score of both 'sample' and 'original' and return in float"
