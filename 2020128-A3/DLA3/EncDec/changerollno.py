@@ -1,11 +1,11 @@
 import os
+from EncDec import *
 import torch
 from torchvision import transforms
 from PIL import Image
 from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from sklearn.manifold import TSNE
 import numpy as np
 
@@ -14,7 +14,7 @@ class AlteredMNIST():
     AlteredMNIST dataset loader.
     """
 
-    def __init__(self, root_dir="d:\\Deep Learning\\Deep-Learning-Assignments\\2020128-A3\\DLA3\\Data\\", transform=transforms.ToTensor()):
+    def __init__(self, root_dir="Data\\", transform=transforms.ToTensor()):
         """
         Initialize the dataset.
 
@@ -22,6 +22,7 @@ class AlteredMNIST():
             root_dir (str): Path to the root directory containing 'aug' and 'clean' folders.
             transform (callable, optional): Optional transform to be applied to the images.
         """
+        
         self.root_dir = root_dir
         self.transform = transform
         self.clean_image_paths = self._get_image_paths('clean')
@@ -29,6 +30,7 @@ class AlteredMNIST():
 
     def _get_image_paths(self, folder_name):
         image_paths = []
+        
         folder_path = os.path.join(self.root_dir, folder_name)
         for filename in os.listdir(folder_path):
             image_paths.append(os.path.join(folder_path, filename))
@@ -39,40 +41,27 @@ class AlteredMNIST():
 
     def __getitem__(self, idx):
         clean_image_path = self.clean_image_paths[idx]
-        # print("clean image path:   ",clean_image_path)
         clean_image = Image.open(clean_image_path).convert('L')
 
-        # print("clean imagepath: ", clean_image_path)
-
-        # Find corresponding noisy images
         noisy_images = []
         clean_images = []
         for noisy_image_path in self.noisy_image_paths:
-            # print("weell: ", noisy_image_path.split('_')[1])
             if noisy_image_path.split('_')[1] == clean_image_path.split('_')[1]:
                 noisy_image = Image.open(noisy_image_path).convert('L')
                 if self.transform:
                     noisy_image = self.transform(noisy_image)
                     clean_image = self.transform(clean_image)
 
-            
-                # print("clean image: ", clean_image.shape)
-                # print("noisy image: ", type(noisy_image))
                 noisy_images.append(noisy_image)
                 clean_images.append(clean_image)
-        # print("Printing noisy images")
-        # print(noisy_image.shape)
+
         if len(noisy_images)!=0:
             noisy_images = torch.stack(noisy_images).squeeze().unsqueeze(0)
             clean_images = torch.stack(clean_images).squeeze().unsqueeze(0)
         else:
-            # print("isme")
+
             noisy_images = torch.zeros(1,28,28)
             clean_images = torch.zeros(1,28,28)
-
-        # print("noisy len:",len(noisy_images))
-        # print("clean len:",len(clean_images))
-        # print(" ")
         
         return noisy_images, clean_images
 
@@ -85,8 +74,8 @@ def plot_tsne_embeddings(encoder, data_loader, n_epochs):
     with torch.no_grad():
         for inputs, targets in data_loader:
             inputs = inputs.to(device)
-            logits = encoder(inputs)  # Assuming your encoder provides embeddings/logits
-            all_embeddings.append(logits.cpu().numpy().reshape(inputs.size(0), -1))  # Flatten the embeddings
+            logits = encoder(inputs)
+            all_embeddings.append(logits.cpu().numpy().reshape(inputs.size(0), -1))
             labels.append(targets.numpy())
 
     all_embeddings = np.concatenate(all_embeddings, axis=0)
@@ -181,21 +170,23 @@ class AELossFn:
     """
     def __init__(self):
         super(AELossFn, self).__init__()
-        # print("this is the loss function")
         self.loss_fn = torch.nn.MSELoss()
-        # print("this is the loss function after calling MSE loss")
 
     def forward(self, input, target):
-        # print("this is inside the forward function")
         value_loss = self.loss_fn(input, target)
-        # print("value loss:  ",value_loss)
         return value_loss
 
 class VAELossFn:
     """
     Loss function for Variational AutoEncoder Training Paradigm
     """
-    pass
+    def __init__(self):
+        super(VAELossFn, self).__init__()
+        self.loss_fn = torch.nn.MSELoss()
+
+    def forward(self, input, target):
+        value_loss = self.loss_fn(input, target)
+        return value_loss
 
 def ParameterSelector(E, D):
     """
@@ -229,19 +220,14 @@ class AETrainer:
         self.encoder = encoder
         self.decoder = decoder
         self.criterion = loss_func
-        # self.learning_rate = learning_rate
         self.device = device
         self.encoder.to(self.device)
         self.decoder.to(self.device)
         self.dataloader = dataloader
-        # print("yehs")
-        # Initialize optimizer
         self.optimizer = optimizer
-        self.train(self.dataloader, 1)
-        # print("train hogya shyd")
+        self.train(self.dataloader, EPOCH)
 
-
-    def train_step(self, noisy_inputs, clean_targets):
+    def train_step(self, noisy_inputs, clean_targets, batch_id,epoch):
         """
         Perform a single training step.
 
@@ -252,23 +238,19 @@ class AETrainer:
         Returns:
             float: Loss value for the current step.
         """
-        # print("kmswksm")
+        sim=1
         self.encoder.train()
         self.decoder.train()
         noisy_inputs = noisy_inputs.to(self.device)
         clean_targets = clean_targets.to(self.device)
-
-        # Forward pass
         latent_representation = self.encoder(noisy_inputs)
         reconstructed_data = self.decoder(latent_representation)
-        # print("clean targets: ", latent_representation)
-        # print("recoinstructed data: ", reconstructed_data)
-        # print("recoinstructed data: ")
-        # Calculate loss
-        # print(self.criterion)
+
         loss = self.criterion.forward(reconstructed_data, clean_targets)
-        print("loss:",loss)
-        # Backpropagation
+
+        if((batch_id+1)%10==0):
+            print(">>>>> Epoch:{}, Minibatch:{}, Loss:{}, Similarity:{}".format(epoch,batch_id+1,loss,sim))
+        
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -276,7 +258,6 @@ class AETrainer:
         return loss.item()
 
     def train(self, dataloader, num_epochs):
-        # print("in the train function")
         """
         Train the autoencoder.
 
@@ -286,23 +267,11 @@ class AETrainer:
         """
         for epoch in range(num_epochs):
             epoch_loss = 0.0
-            # print("epcohs tk")
-            # data = dataloader.dataset.data 
-            # shape = dataloader.dataset.data.shape  
-            # datatype = dataloader.dataset.data.dtype
-            # print(data)
-            # print("hello1")
-            # print(shape)
-            # print("hello2")
-            # print(datatype)
-            # print(dataloader)
 
             for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
-                # print("what the hell")
-                # print("here i am")
-                loss = self.train_step(noisy_inputs, clean_targets)
+
+                loss = self.train_step(noisy_inputs, clean_targets,batch_idx,epoch+1)
                 epoch_loss += loss
-                # break
 
             epoch_loss /= len(dataloader)
             torch.save({
@@ -311,9 +280,9 @@ class AETrainer:
             'model_state_dict_decoder': self.decoder.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss': epoch_loss,
-            }, 'checkpoint.pth')
-            # plot_tsne_embeddings(self.encoder, dataloader, n_epochs=epoch+1)
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {epoch_loss:.4f}")
+            }, 'checkpoint_AE.pth')
+            sim = 1
+            print(f"----- Epoch:{epoch + 1}, Loss:{epoch_loss:.4f}, Similarity:{sim}")
 
 
 class VAETrainer:
@@ -328,16 +297,90 @@ class VAETrainer:
     
     After every 5 epochs make 3D TSNE plot of logits of whole data and save the image as VAE_epoch_{}.png
     """
-    pass
+    def __init__(self,dataloader, encoder, decoder, loss_func, optimizer, device):
+        """
+        Initialize the VAETrainer.
+
+        Args:
+            encoder (nn.Module): Encoder network.
+            decoder (nn.Module): Decoder network.
+            criterion (nn.Module): Loss function.
+            learning_rate (float): Learning rate for the optimizer.
+        """
+        self.encoder = encoder
+        self.decoder = decoder
+        self.criterion = loss_func
+        self.device = device
+        self.encoder.to(self.device)
+        self.decoder.to(self.device)
+        self.dataloader = dataloader
+        self.optimizer = optimizer
+        self.train(self.dataloader, 1)
+
+    def train_step(self, noisy_inputs, clean_targets, batch_id,epoch):
+        """
+        Perform a single training step.
+
+        Args:
+            noisy_inputs (torch.Tensor): Noisy input data.
+            clean_targets (torch.Tensor): Corresponding clean data.
+
+        Returns:
+            float: Loss value for the current step.
+        """
+        sim=1
+        self.encoder.train()
+        self.decoder.train()
+        noisy_inputs = noisy_inputs.to(self.device)
+        clean_targets = clean_targets.to(self.device)
+        latent_representation = self.encoder(noisy_inputs)
+        reconstructed_data = self.decoder(latent_representation)
+
+        loss = self.criterion.forward(reconstructed_data, clean_targets)
+
+        if((batch_id+1)%10==0):
+            print(">>>>> Epoch:{}, Minibatch:{}, Loss:{}, Similarity:{}".format(epoch,batch_id+1,loss,sim))
+        
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.item()
+
+    def train(self, dataloader, num_epochs):
+        """
+        Train the autoencoder.
+
+        Args:
+            dataloader (DataLoader): DataLoader for the training data.
+            num_epochs (int): Number of epochs for training.
+        """
+        for epoch in range(num_epochs):
+            epoch_loss = 0.0
+
+            for batch_idx, (noisy_inputs, clean_targets) in enumerate(dataloader):
+
+                loss = self.train_step(noisy_inputs, clean_targets,batch_idx,epoch+1)
+                epoch_loss += loss
+
+            epoch_loss /= len(dataloader)
+            torch.save({
+            'epoch': epoch,
+            'model_state_dict_encoder': self.encoder.state_dict(),
+            'model_state_dict_decoder': self.decoder.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'loss': epoch_loss,
+            }, 'checkpoint_VAE.pth')
+            sim = 1
+            print(f"----- Epoch:{epoch + 1}, Loss:{epoch_loss:.4f}, Similarity:{sim}")
+
 
 def ssim(img1, img2):
-    # Convert images to tensors
-    img1_tensor = torch.tensor(img1, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)  # Assuming input images are in numpy format
+    img1_tensor = torch.tensor(img1, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)
     img2_tensor = torch.tensor(img2, dtype=torch.float32).unsqueeze(0).permute(0, 3, 1, 2)
     
-    # Calculate SSIM
     ssim_value = F.msssim(img1_tensor, img2_tensor, data_range=1, size_average=True)
-    
+    print()
     return ssim_value.item()
 
 class AE_TRAINED:
@@ -345,35 +388,27 @@ class AE_TRAINED:
     Write code for loading trained Encoder-Decoder from saved checkpoints for Autoencoder paradigm here.
     use forward pass of both encoder-decoder to get output image.
     """
-    def __init__(self, gpu_status):
+    def __init__(self, gpu):
         self.encoder = Encoder()
         self.decoder = Decoder()
-        
+        self.gpu = gpu
 
     def from_path(self,sample, original, type):
         "Compute similarity score of both 'sample' and 'original' and return in float"
-        checkpoint = torch.load("checkpoint.pth")
+        checkpoint = torch.load("checkpoint_AE.pth")
         
         self.encoder.load_state_dict(checkpoint['model_state_dict_encoder'])
         self.decoder.load_state_dict(checkpoint['model_state_dict_decoder'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        epoch = checkpoint['epoch']
-        loss = checkpoint['loss']
 
         with torch.no_grad():
             encoded = self.encoder(sample)
             decoded = self.decoder(encoded)
 
-        # Convert tensors to numpy arrays
-        sample_np = original.squeeze(0).permute(1, 2, 0).numpy()
+        original_np = original.squeeze(0).permute(1, 2, 0).numpy()
         decoded_np = decoded.squeeze(0).permute(1, 2, 0).numpy()
 
-        print("sample np: ",sample_np)
-        print("decoded np: ",decoded_np)
-
-        # Compute SSIM score
-        score = ssim(sample_np, decoded_np)
-
+        score = ssim(original_np, decoded_np)
         return float(score)
 
         
@@ -385,9 +420,28 @@ class VAE_TRAINED:
     """
 
 
-    def from_path(sample, original, type):
+    def __init__(self, gpu):
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+        self.gpu = gpu
+
+    def from_path(self,sample, original, type):
         "Compute similarity score of both 'sample' and 'original' and return in float"
-        pass
+        checkpoint = torch.load("checkpoint_VAE.pth")
+        
+        self.encoder.load_state_dict(checkpoint['model_state_dict_encoder'])
+        self.decoder.load_state_dict(checkpoint['model_state_dict_decoder'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        with torch.no_grad():
+            encoded = self.encoder(sample)
+            decoded = self.decoder(encoded)
+
+        original_np = original.squeeze(0).permute(1, 2, 0).numpy()
+        decoded_np = decoded.squeeze(0).permute(1, 2, 0).numpy()
+
+        score = ssim(original_np, decoded_np)
+        return float(score)
 
 class CVAELossFn():
     """

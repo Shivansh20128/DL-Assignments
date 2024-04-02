@@ -14,7 +14,6 @@ A = P.parse_args()
     
 
 if __name__ == "__main__":
-    print("start")
 
     Data = DataLoader(dataset=AlteredMNIST(),
                       batch_size=BATCH_SIZE,
@@ -23,22 +22,10 @@ if __name__ == "__main__":
                       drop_last=True,
                       pin_memory=True)
     
-    try:
-        print("Batch size loll:")
-        batch = next(iter(Data))
-        data, labels = batch
-        print("Batch size:", len(data))
-        # You can print or inspect the data and labels here
-    except Exception as e:
-        print("Error encountered while accessing a batch:", e)
-    # print("dataloader print")
-    # for batch_idx, (noisy_inputs, clean_targets) in enumerate(Data):
-    #     print("here i am")
+
     E = Encoder()
     D = Decoder()
-    print("before loss function")
-    L = [AELossFn()]
-    print("after loss function")
+    L = [AELossFn(), VAELossFn()]
     
     O = torch.optim.Adam(ParameterSelector(E, D), lr=LEARNING_RATE)
     
@@ -46,7 +33,6 @@ if __name__ == "__main__":
         E.__class__.__name__,
         D.__class__.__name__,
     ))
-    print("hello there")
     AETrainer(Data,
               E,
               D,
@@ -54,31 +40,31 @@ if __name__ == "__main__":
               O,
               A.gpu)
     
-    # print("Training Encoder: {}, Decoder: {} on Modified MNIST dataset in VAE training paradigm".format(
-    #     E.__class__.__name__,
-    #     D.__class__.__name__,
-    # ))
-    # VAETrainer(Data,
-    #            E,
-    #            D,
-    #            L[1],
-    #            O,
-    #            A.gpu)
+    print("Training Encoder: {}, Decoder: {} on Modified MNIST dataset in VAE training paradigm".format(
+        E.__class__.__name__,
+        D.__class__.__name__,
+    ))
+    VAETrainer(Data,
+               E,
+               D,
+               L[1],
+               O,
+               A.gpu)
     
-    # print("AE, VAE Training Complete")
+    print("AE, VAE Training Complete")
     
-    # if A.bonus == "T":
-    #     CL = CVAELossFn()
-    #     CVAE_Trainer(Data,
-    #                  E,
-    #                  D,
-    #                  CL,
-    #                  O)
-    # else:
-    #     print("Bonus Question not done")
+    if A.bonus == "T":
+        CL = CVAELossFn()
+        CVAE_Trainer(Data,
+                     E,
+                     D,
+                     CL,
+                     O)
+    else:
+        print("Bonus Question not done")
         
     AE_Pipeline = AE_TRAINED(gpu=False)
-    # VAE_Pipeline = VAE_TRAINED(gpu=False)
+    VAE_Pipeline = VAE_TRAINED(gpu=False)
     
     
     
